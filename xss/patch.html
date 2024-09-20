@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>XSS Patch Example</title>
+  <style type="text/css">
+        body{ font: 14px sans-serif; }
+        .wrapper{ width: 350px; padding: 20px; }
+        .project-info-button {
+        background-color: #ff0000;
+        color: #ffffff;
+        padding: 10px 20px;
+        border: none;
+        font-size: 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        display: block;
+        margin: 0 auto;
+        width: 150px;
+        text-align: center;
+        line-height: 1.5;
+      }
+
+      .project-info-button:hover {
+        background-color: #cc0000;
+      }
+    </style>
+  <script>
+    function displayInput() {
+      var userInput = document.getElementById("userInput").value;
+      var encodedInput = encodeHTML(userInput);
+      document.getElementById("output").innerHTML = "User input: " + encodedInput;
+    }
+
+    function encodeHTML(input) {
+      var temp = document.createElement("div");
+      temp.textContent = input;
+      return temp.innerHTML;
+    }
+  </script>
+</head>
+<body>
+  <a href="Project Information.html" target="_blank" class="form-group input[type='submit'] project-info-button">Project Info</a>
+  <h1>XSS Patch Example</h1>
+  <p>
+    This is an example of a web page that reflects user input with proper encoding:
+  </p>
+  <form>
+    <label for="userInput">Enter your input:</label>
+    <input type="text" id="userInput" name="userInput">
+    <button type="button" onclick="displayInput()">Submit</button>
+  </form>
+  <p id="output"></p>
+</body>
+</html>
+
+
+
