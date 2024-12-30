@@ -1,0 +1,178 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import imaplib
+import datetime
+from email import message_from_bytes
+from email.header import decode_header
+import email.utils  # Ensure email.utils is imported
+
+# Sample email data (this will be fetched dynamically from Gmail)
+email_data = []
+
+class EmailClientApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("EverestIMS - Email Management")
+        self.root.geometry("1000x700")
+        self.root.config(bg="#f0f0f0")
+
+        # Create main frame to hold the entire UI (center aligned)
+        self.main_frame = tk.Frame(root, bg="#f0f0f0", padx=20, pady=20)
+        self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Create headline for Email Management
+        self.headline_label = tk.Label(self.main_frame, text="Email Management", font=("Arial", 20, "bold"), bg="#f0f0f0")
+        self.headline_label.grid(row=0, column=0, columnspan=2, pady=30)
+
+        # Create Email and Password fields with alignment in grid
+        self.email_label = tk.Label(self.main_frame, text="Email:", font=("Arial", 12), bg="#f0f0f0")
+        self.email_label.grid(row=1, column=0, padx=20, pady=10, sticky="e")
+        
+        self.email_entry = tk.Entry(self.main_frame, width=40, font=("Arial", 12))
+        self.email_entry.grid(row=1, column=1, pady=10)
+        self.email_entry.insert(0, "vishnuambati6@gmail.com")  # Default email
+
+        self.password_label = tk.Label(self.main_frame, text="Password:", font=("Arial", 12), bg="#f0f0f0")
+        self.password_label.grid(row=2, column=0, padx=20, pady=10, sticky="e")
+        
+        self.password_entry = tk.Entry(self.main_frame, show="*", width=40, font=("Arial", 12))
+        self.password_entry.grid(row=2, column=1, pady=10)
+        self.password_entry.insert(0, "nazmmpldvwhxykuy")  # Default password
+
+        # Submit button, centered
+        self.submit_button = tk.Button(self.main_frame, text="Submit", command=self.submit, width=20, font=("Arial", 14), bg="#4CAF50", fg="white", relief="solid", bd=2)
+        self.submit_button.grid(row=3, column=0, columnspan=2, pady=20)
+
+        # Status label for showing connection status
+        self.status_frame = tk.Frame(self.main_frame, bg="#f0f0f0", height=50)
+        self.status_frame.grid(row=4, column=0, columnspan=2, pady=10, sticky="ew")
+
+        self.status_label = tk.Label(self.status_frame, text="", font=("Arial", 12), bg="#f0f0f0", fg="green")
+        self.status_label.pack(fill="both", expand=True)
+
+    def submit(self):
+        # Validate email and password
+        email = self.email_entry.get()
+        password = self.password_entry.get()
+
+        if not email or not password:
+            messagebox.showerror("Error", "Email and Password cannot be empty.")
+        else:
+            self.fetch_emails(email, password)
+
+    def fetch_emails(self, email, password):
+        try:
+            # Connect to Gmail IMAP server
+            mail = imaplib.IMAP4_SSL("imap.gmail.com")
+            mail.login(email, password)
+
+            # If the connection is successful, update the status label
+            self.status_label.config(text="Connection Successful!", fg="green")
+
+            # Select inbox and fetch emails
+            mail.select("inbox")
+            status, messages = mail.search(None, "ALL")
+            if status != "OK":
+                self.status_label.config(text="Failed to fetch emails.", fg="red")
+                return
+
+            # Clear existing email data
+            email_data.clear()
+
+            # Get the current date and calculate the date 10 days ago
+            current_date = datetime.datetime.now()
+            ten_days_ago = current_date - datetime.timedelta(days=10)
+
+            # Process each email
+            for num in messages[0].split():
+                status, msg_data = mail.fetch(num, "(RFC822)")
+                if status != "OK":
+                    continue
+                
+                for response_part in msg_data:
+                    if isinstance(response_part, tuple):
+                        # Use message_from_bytes directly instead of email.message_from_bytes
+                        msg = message_from_bytes(response_part[1])
+                        
+                        # Get subject with proper error handling
+                        subject_header = msg["Subject"]
+                        if subject_header:
+                            subject_parts = decode_header(subject_header)
+                            subject = ""
+                            for part, charset in subject_parts:
+                                if isinstance(part, bytes):
+                                    subject += part.decode(charset if charset else 'utf-8')
+                                else:
+                                    subject += str(part)
+                        else:
+                            subject = "No Subject"
+
+                        # Get sender and date
+                        sender = msg.get("From", "Unknown")
+                        date_str = msg.get("Date", "Unknown")
+                        
+                        if sender and date_str:
+                            # Convert the email's date to a datetime object
+                            email_date = email.utils.parsedate_tz(date_str)
+                            if email_date:
+                                email_datetime = datetime.datetime.fromtimestamp(email.utils.mktime_tz(email_date))
+
+                                # Filter out emails older than 10 days
+                                if email_datetime > ten_days_ago:
+                                    # Extract email from sender field if it contains an email address
+                                    if "<" in sender and ">" in sender:
+                                        sender_email = sender.split("<")[1].split(">")[0]
+                                    else:
+                                        sender_email = sender
+                                    
+                                    email_data.append((sender_email, email_datetime.strftime("%Y-%m-%d %H:%M:%S"), email, "Not Replied"))
+
+            # If emails are fetched successfully, open new window with tab view
+            self.status_label.config(text="Emails fetched successfully.", fg="green")
+            self.open_email_window()
+
+            # Logout after processing
+            mail.logout()
+
+        except Exception as e:
+            self.status_label.config(text=f"Error: {str(e)}", fg="red")
+            messagebox.showerror("Error", f"Error fetching emails: {e}")
+
+    def open_email_window(self):
+        # Create a new top-level window
+        email_window = tk.Toplevel(self.root)
+        email_window.title("Fetched Emails")
+        email_window.geometry("1000x700")
+
+        # Create a Notebook widget (tabs)
+        notebook = ttk.Notebook(email_window)
+        notebook.pack(fill="both", expand=True)
+
+        # Create a tab for emails
+        email_tab = tk.Frame(notebook, bg="#f0f0f0")
+        notebook.add(email_tab, text="Emails")
+
+        # Create a treeview for displaying email data
+        self.tree = ttk.Treeview(email_tab, columns=("Sender", "Date & Time", "Receiver", "Reply Status"), show="headings")
+        self.tree.heading("Sender", text="SenderEmail")
+        self.tree.heading("Date & Time", text="Date & Time")
+        self.tree.heading("Receiver", text="ReceiverEmail")
+        self.tree.heading("Reply Status", text="ReplyStatus")
+
+        # Insert fetched email data into the treeview
+        for email_info in email_data:
+            self.tree.insert("", tk.END, values=email_info)
+
+        # Configure column widths
+        self.tree.column("Sender", width=200)
+        self.tree.column("Date & Time", width=200)
+        self.tree.column("Receiver", width=200)
+        self.tree.column("Reply Status", width=150)
+
+        # Pack the treeview in the tab
+        self.tree.pack(fill="both", expand=True)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = EmailClientApp(root)
+    root.mainloop()
